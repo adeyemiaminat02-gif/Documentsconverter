@@ -1,4 +1,7 @@
 import sys
+import os
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from utils.config import BOT_TOKEN
 from utils.logger import logger
@@ -10,16 +13,26 @@ from handlers.history import history_handler
 from handlers.settings import settings_handler, settings_callback_handler
 from handlers.convert import document_upload_handler, conversion_action_callback, text_routing_fallback_handler
 
+# Dummy server to satisfy Render's Web Service Port requirement
+def run_dummy_server():
+    port = int(os.getenv("PORT", 10000))
+    server_address = ("", port)
+    httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
+    logger.info(f"Dummy health check server listening on port {port}")
+    httpd.serve_forever()
+
 def main() -> None:
     if not BOT_TOKEN:
         logger.critical("CRITICAL: BOT_TOKEN environment target missing in configuration context.")
         sys.exit(1)
         
-    # Instantiate SQLite system mapping structure arrays
     logger.info("Initializing persistence database layers...")
     init_db()
     
-    # Initialize Application instance pipeline
+    # Start the dummy web server in a background thread if running on Render
+    if os.getenv("PORT"):
+        threading.Thread(target=run_dummy_server, daemon=True).start()
+    
     logger.info("Configuring python-telegram-bot asynchronous application stack frame context...")
     app = Application.builder().token(BOT_TOKEN).build()
     
