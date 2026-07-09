@@ -1,6 +1,7 @@
 import sys
 import os
 import threading
+import asyncio
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from utils.config import BOT_TOKEN
@@ -21,7 +22,7 @@ def run_dummy_server():
     logger.info(f"Dummy health check server listening on port {port}")
     httpd.serve_forever()
 
-def main() -> None:
+async def async_main() -> None:
     if not BOT_TOKEN:
         logger.critical("CRITICAL: BOT_TOKEN environment target missing in configuration context.")
         sys.exit(1)
@@ -59,7 +60,26 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_routing_fallback_handler))
     
     logger.info("Bot infrastructure initialization complete. Launching execution event loops polling updates...")
-    app.run_polling()
+    
+    # Explicitly initialize, start, and run polling within our active managed loop
+    await app.initialize()
+    await app.updater.start_polling()
+    await app.start()
+    
+    # Keeps the loop alive until terminated
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Stopping bot execution container cleanly...")
+    finally:
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
+
+def main() -> None:
+    # Python 3.14 robust main entry point loop isolation
+    asyncio.run(async_main())
 
 if __name__ == "__main__":
     main()
